@@ -1,6 +1,8 @@
-# doclock
+# DocLock
 
 A new Flutter project.
+That is the replica of the MP Locker(MY Wallet) app that i have worked on as a mobile
+dev but in this project i have my own backend optimizations and UI changes.
 
 ## Getting Started
 
