@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../data/datasources/auth_local_datasource.dart';
+import '../../data/datasources/auth_remote_datasource.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,12 +16,100 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  bool _isLoading = false;
+
+  final AuthRemoteDataSource _remoteDataSource = AuthRemoteDataSourceImpl();
+  final AuthLocalDataSource _localDataSource = AuthLocalDataSourceImpl();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedEmail();
+  }
+
+  Future<void> _loadSavedEmail() async {
+    final savedEmail = await _localDataSource.getUserEmail();
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      setState(() {
+        _emailController.text = savedEmail;
+        _rememberMe = true;
+      });
+    }
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    // Validation
+    if (email.isEmpty || password.isEmpty) {
+      _showFeedback(
+        message: 'Please provide both email and master password',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Call FastAPI backend login endpoint (/api/v1/auth/login)
+      final tokenModel = await _remoteDataSource.login(
+        email: email,
+        password: password,
+      );
+
+      // 2. Securely store JWT token
+      await _localDataSource.saveToken(tokenModel.accessToken);
+
+      // 3. Handle remember me
+      if (_rememberMe) {
+        await _localDataSource.saveUserEmail(email);
+      } else {
+        await _localDataSource.saveUserEmail('');
+      }
+
+      if (!mounted) return;
+
+      // 4. Show success feedback
+      _showFeedback(
+        message: 'Vault unlocked successfully! Welcome back ${tokenModel.user.email}',
+        isError: false,
+      );
+
+      // TODO: Navigate to Dashboard / Home Vault screen
+    } catch (e) {
+      if (!mounted) return;
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      _showFeedback(message: errorMessage, isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showFeedback({required String message, required bool isError}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError ? AppColors.error : AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -134,6 +224,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: AppColors.textPrimary),
+                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     hintText: 'name@example.com',
                     prefixIcon: Icon(Icons.email_outlined, color: AppColors.textMuted),
@@ -149,6 +240,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: AppColors.textPrimary),
+                  enabled: !_isLoading,
                   decoration: InputDecoration(
                     hintText: '••••••••••••',
                     prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.textMuted),
@@ -183,11 +275,13 @@ class _LoginPageState extends State<LoginPage> {
                             checkColor: AppColors.background,
                             side: const BorderSide(color: AppColors.border, width: 1.5),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                            onChanged: (val) {
-                              setState(() {
-                                _rememberMe = val ?? false;
-                              });
-                            },
+                            onChanged: _isLoading
+                                ? null
+                                : (val) {
+                                    setState(() {
+                                      _rememberMe = val ?? false;
+                                    });
+                                  },
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -195,7 +289,7 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     TextButton(
-                      onPressed: () {},
+                      onPressed: _isLoading ? null : () {},
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -214,38 +308,52 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 28),
 
-                // Sign In Button
+                // Sign In / Unlock Vault Button
                 Container(
                   height: 54,
                   decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
+                    gradient: _isLoading ? null : AppColors.primaryGradient,
+                    color: _isLoading ? AppColors.surfaceCard : null,
                     borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.35),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+                    boxShadow: _isLoading
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                   ),
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
+                      disabledForegroundColor: Colors.transparent,
+                      disabledBackgroundColor: Colors.transparent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text(
-                      'Unlock Vault',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF070B14),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            ),
+                          )
+                        : const Text(
+                            'Unlock Vault',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF070B14),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                   ),
                 ),
 
@@ -253,7 +361,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 // Biometric / Quick Unlock Option
                 OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: _isLoading ? null : () {},
                   icon: const Icon(Icons.fingerprint_rounded, color: AppColors.primary, size: 24),
                   label: const Text(
                     'Biometric Quick Unlock',
@@ -283,7 +391,7 @@ class _LoginPageState extends State<LoginPage> {
                       style: AppTextStyles.body,
                     ),
                     GestureDetector(
-                      onTap: () {},
+                      onTap: _isLoading ? null : () {},
                       child: const Text(
                         'Sign Up',
                         style: TextStyle(
