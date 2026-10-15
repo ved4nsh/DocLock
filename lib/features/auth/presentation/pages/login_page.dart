@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../../dashboard/presentation/pages/dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -78,13 +79,22 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      // 4. Show success feedback
-      _showFeedback(
-        message: 'Vault unlocked successfully! Welcome back ${tokenModel.user.email}',
-        isError: false,
+      // 4. Navigate to Dashboard
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => DashboardPage(
+            userEmail: tokenModel.user.email,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
       );
-
-      // TODO: Navigate to Dashboard / Home Vault screen
     } catch (e) {
       if (!mounted) return;
       final errorMessage = e.toString().replaceFirst('Exception: ', '');
