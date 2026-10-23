@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:open_file/open_file.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../documents/data/datasources/document_remote_datasource.dart';
 import '../../../documents/data/models/document_model.dart';
+import '../../../documents/presentation/pages/document_upload_page.dart';
+import '../../../documents/presentation/pages/documents_list_page.dart';
 import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String userEmail;
+  final String? initialToken;
 
-  const DashboardPage({super.key, required this.userEmail});
+  const DashboardPage({
+    super.key,
+    required this.userEmail,
+    this.initialToken,
+  });
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -24,8 +33,14 @@ class _DashboardPageState extends State<DashboardPage>
   late Animation<double> _pulseAnimation;
 
   final AuthLocalDataSource _localDataSource = AuthLocalDataSourceImpl();
+  final DocumentRemoteDataSource _documentDataSource =
+      DocumentRemoteDataSourceImpl();
 
-  final List<DocumentModel> _recentDocuments = [
+  String? _token;
+  bool _isLoadingDocs = false;
+  final Set<String> _downloadingIds = {};
+
+  List<DocumentModel> _recentDocuments = [
     DocumentModel(
       id: '1',
       title: 'Passport Copy',
@@ -78,6 +93,8 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void initState() {
     super.initState();
+    _token = widget.initialToken;
+
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -93,6 +110,32 @@ class _DashboardPageState extends State<DashboardPage>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _fadeController.forward();
+
+    _loadTokenAndFetch();
+  }
+
+  Future<void> _loadTokenAndFetch() async {
+    final token = _token ?? await _localDataSource.getToken();
+    if (!mounted) return;
+    setState(() => _token = token);
+
+    if (token != null && token.isNotEmpty) {
+      _fetchRecentDocuments(token);
+    }
+  }
+
+  Future<void> _fetchRecentDocuments(String token) async {
+    setState(() => _isLoadingDocs = true);
+    try {
+      final docs = await _documentDataSource.getDocuments(token: token);
+      if (mounted && docs.isNotEmpty) {
+        setState(() => _recentDocuments = docs);
+      }
+    } catch (_) {
+      // Keep existing items if offline or error
+    } finally {
+      if (mounted) setState(() => _isLoadingDocs = false);
+    }
   }
 
   @override
@@ -112,6 +155,7 @@ class _DashboardPageState extends State<DashboardPage>
   String get _userName {
     final email = widget.userEmail;
     final name = email.contains('@') ? email.split('@').first : email;
+    if (name.isEmpty) return 'User';
     return name[0].toUpperCase() + name.substring(1);
   }
 
@@ -120,6 +164,75 @@ class _DashboardPageState extends State<DashboardPage>
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${diff.inDays}d ago';
+  }
+
+  Future<void> _openUploadPage() async {
+    String? token = _token;
+    if (token == null || token.isEmpty) {
+      token = await _localDataSource.getToken();
+      if (mounted) setState(() => _token = token);
+    }
+    if (!mounted) return;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in again.')),
+      );
+      return;
+    }
+    final uploaded = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DocumentUploadPage(token: token!),
+      ),
+    );
+    if (!mounted) return;
+    if (uploaded == true) {
+      _fetchRecentDocuments(token);
+    }
+  }
+
+  Future<void> _downloadAndOpenFile(DocumentModel doc) async {
+    String? token = _token;
+    if (token == null || token.isEmpty) {
+      token = await _localDataSource.getToken();
+      if (mounted) setState(() => _token = token);
+    }
+    if (!mounted) return;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in again to download.')),
+      );
+      return;
+    }
+
+    setState(() => _downloadingIds.add(doc.id));
+    try {
+      final filePath = await _documentDataSource.downloadDocument(
+        token: token,
+        documentId: doc.id,
+        filename: doc.displayName,
+      );
+      if (!mounted) return;
+      final result = await OpenFile.open(filePath);
+      if (result.type != ResultType.done && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open file: ${result.message}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingIds.remove(doc.id));
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -188,8 +301,12 @@ class _DashboardPageState extends State<DashboardPage>
       case 0:
         return _buildHomePage();
       case 1:
-        return _buildPlaceholderTab(
-            Icons.folder_open_rounded, 'Documents', 'All your secure files in one place');
+        if (_token != null && _token!.isNotEmpty) {
+          return DocumentsListPage(token: _token!);
+        }
+        return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        );
       case 2:
         return _buildPlaceholderTab(
             Icons.grid_view_rounded, 'Categories', 'Organize documents by category');
@@ -273,7 +390,8 @@ class _DashboardPageState extends State<DashboardPage>
               ),
               Row(
                 children: [
-                  _headerIconButton(Icons.search_rounded, onTap: () {}),
+                  _headerIconButton(Icons.search_rounded,
+                      onTap: () => setState(() => _selectedIndex = 1)),
                   const SizedBox(width: 8),
                   _headerIconButton(Icons.notifications_outlined, onTap: () {}),
                   const SizedBox(width: 8),
@@ -299,7 +417,7 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       child: Center(
                         child: Text(
-                          _userName[0].toUpperCase(),
+                          _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
                           style: const TextStyle(
                             color: Color(0xFF070B14),
                             fontWeight: FontWeight.bold,
@@ -487,7 +605,7 @@ class _DashboardPageState extends State<DashboardPage>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                onTap: () {},
+                onTap: _openUploadPage,
               ),
             ),
             const SizedBox(width: 12),
@@ -500,7 +618,7 @@ class _DashboardPageState extends State<DashboardPage>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                onTap: () {},
+                onTap: _openUploadPage,
               ),
             ),
             const SizedBox(width: 12),
@@ -575,7 +693,23 @@ class _DashboardPageState extends State<DashboardPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Recent Documents', style: AppTextStyles.heading2),
+            Row(
+              children: [
+                const Text('Recent Documents', style: AppTextStyles.heading2),
+                if (_isLoadingDocs) ...[
+                  const SizedBox(width: 10),
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  ),
+                ],
+              ],
+            ),
             TextButton(
               onPressed: () => setState(() => _selectedIndex = 1),
               child: const Text(
@@ -598,6 +732,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _documentCard(DocumentModel doc) {
+    final isDownloading = _downloadingIds.contains(doc.id);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -611,7 +746,7 @@ class _DashboardPageState extends State<DashboardPage>
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           splashColor: doc.accentColor.withValues(alpha: 0.1),
-          onTap: () {},
+          onTap: () => _downloadAndOpenFile(doc),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
@@ -670,8 +805,19 @@ class _DashboardPageState extends State<DashboardPage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textMuted, size: 20),
+                if (isDownloading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  )
+                else
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textMuted, size: 20),
               ],
             ),
           ),
@@ -820,7 +966,7 @@ class _DashboardPageState extends State<DashboardPage>
         width: 56,
         height: 56,
         child: FloatingActionButton(
-          onPressed: () {},
+          onPressed: _openUploadPage,
           backgroundColor: Colors.transparent,
           elevation: 0,
           child: Container(

@@ -4,6 +4,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../../dashboard/presentation/pages/dashboard_page.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -85,6 +86,7 @@ class _LoginPageState extends State<LoginPage> {
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) => DashboardPage(
             userEmail: tokenModel.user.email,
+            initialToken: tokenModel.accessToken,
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
@@ -401,7 +403,15 @@ class _LoginPageState extends State<LoginPage> {
                       style: AppTextStyles.body,
                     ),
                     GestureDetector(
-                      onTap: _isLoading ? null : () {},
+                      onTap: _isLoading
+                          ? null
+                          : () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const RegisterPage(),
+                                ),
+                              );
+                            },
                       child: const Text(
                         'Sign Up',
                         style: TextStyle(

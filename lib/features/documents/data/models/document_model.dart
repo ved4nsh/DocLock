@@ -8,30 +8,70 @@ enum DocumentType {
   certificate,
 }
 
+/// Matches the JSON returned by GET /api/v1/documents
+/// and POST /api/v1/documents, while also supporting UI helper getters.
 class DocumentModel {
   final String id;
-  final String title;
-  final String category;
-  final DocumentType type;
-  final String fileSize;
-  final DateTime updatedAt;
-  final String encryptionAlgorithm;
+  final String filename;
+  final String? mimeType;
+  final int fileSizeBytes;
+  final DateTime uploadedAt;
+  final String ownerId;
+  final String? customCategory;
   final bool isPinned;
-  final bool isShared;
-  final List<String> tags;
+  final List<String> customTags;
 
-  const DocumentModel({
+  DocumentModel({
     required this.id,
-    required this.title,
-    required this.category,
-    required this.type,
-    required this.fileSize,
-    required this.updatedAt,
-    this.encryptionAlgorithm = 'AES-256-GCM',
+    String? filename,
+    String? title,
+    this.mimeType,
+    int? fileSizeBytes,
+    String? fileSize,
+    DateTime? uploadedAt,
+    DateTime? updatedAt,
+    String? ownerId,
+    String? category,
     this.isPinned = false,
-    this.isShared = false,
-    this.tags = const [],
-  });
+    List<String>? tags,
+    DocumentType? type,
+  })  : filename = filename ?? title ?? 'Untitled',
+        fileSizeBytes = fileSizeBytes ?? _parseSizeStringToBytes(fileSize),
+        uploadedAt = uploadedAt ?? updatedAt ?? DateTime.now(),
+        ownerId = ownerId ?? '',
+        customCategory = category,
+        customTags = tags ?? const [];
+
+  // ─── Display & Compatibility Getters ────────────────────────────────────────
+
+  String get displayName {
+    return filename.split('/').last.split('\\').last;
+  }
+
+  String get title => displayName;
+
+  String get extension {
+    final parts = displayName.split('.');
+    return parts.length > 1 ? parts.last.toLowerCase() : '';
+  }
+
+  DocumentType get type {
+    final ext = extension;
+    if (['pdf'].contains(ext)) return DocumentType.pdf;
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic'].contains(ext)) {
+      return DocumentType.image;
+    }
+    if (['xlsx', 'xls', 'csv', 'numbers'].contains(ext)) {
+      return DocumentType.spreadsheet;
+    }
+    if (['cer', 'crt', 'pem', 'p12', 'pfx'].contains(ext)) {
+      return DocumentType.certificate;
+    }
+    final mime = mimeType ?? '';
+    if (mime.startsWith('image/')) return DocumentType.image;
+    if (mime == 'application/pdf') return DocumentType.pdf;
+    return DocumentType.text;
+  }
 
   IconData get icon {
     switch (type) {
@@ -63,62 +103,128 @@ class DocumentModel {
     }
   }
 
+  String get fileSizeDisplay {
+    if (fileSizeBytes < 1024) return '$fileSizeBytes B';
+    if (fileSizeBytes < 1024 * 1024) {
+      return '${(fileSizeBytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(fileSizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String get fileSize => fileSizeDisplay;
+
+  DateTime get updatedAt => uploadedAt;
+
+  String get category {
+    if (customCategory != null && customCategory!.isNotEmpty) {
+      return customCategory!;
+    }
+    switch (type) {
+      case DocumentType.pdf:
+        return 'Legal & Reports';
+      case DocumentType.image:
+        return 'Photos & Scans';
+      case DocumentType.spreadsheet:
+        return 'Financial';
+      case DocumentType.certificate:
+        return 'Identity & Security';
+      case DocumentType.text:
+        return 'Personal Notes';
+    }
+  }
+
+  List<String> get tags {
+    if (customTags.isNotEmpty) return customTags;
+    final ext = extension.toUpperCase();
+    return [if (ext.isNotEmpty) ext, type.name.toUpperCase()];
+  }
+
   DocumentModel copyWith({
     String? id,
-    String? title,
+    String? filename,
+    String? mimeType,
+    int? fileSizeBytes,
+    DateTime? uploadedAt,
+    String? ownerId,
     String? category,
-    DocumentType? type,
-    String? fileSize,
-    DateTime? updatedAt,
-    String? encryptionAlgorithm,
     bool? isPinned,
-    bool? isShared,
     List<String>? tags,
   }) {
     return DocumentModel(
       id: id ?? this.id,
-      title: title ?? this.title,
-      category: category ?? this.category,
-      type: type ?? this.type,
-      fileSize: fileSize ?? this.fileSize,
-      updatedAt: updatedAt ?? this.updatedAt,
-      encryptionAlgorithm: encryptionAlgorithm ?? this.encryptionAlgorithm,
+      filename: filename ?? this.filename,
+      mimeType: mimeType ?? this.mimeType,
+      fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
+      uploadedAt: uploadedAt ?? this.uploadedAt,
+      ownerId: ownerId ?? this.ownerId,
+      category: category ?? customCategory,
       isPinned: isPinned ?? this.isPinned,
-      isShared: isShared ?? this.isShared,
-      tags: tags ?? this.tags,
+      tags: tags ?? customTags,
     );
   }
+
+  // ─── Serialisation ──────────────────────────────────────────────────────────
 
   factory DocumentModel.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
     return DocumentModel(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      category: json['category'] as String,
-      type: DocumentType.values.firstWhere(
-        (t) => t.name == json['type'],
-        orElse: () => DocumentType.text,
-      ),
-      fileSize: json['file_size'] as String,
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-      encryptionAlgorithm: json['encryption_algorithm'] as String? ?? 'AES-256-GCM',
+      id: rawId.toString(),
+      filename: (json['filename'] as String?) ??
+          (json['file_name'] as String?) ??
+          (json['title'] as String?) ??
+          'Untitled',
+      mimeType: json['mime_type'] as String? ?? json['content_type'] as String?,
+      fileSizeBytes: _parseInt(json['file_size'] ?? json['size'] ?? 0),
+      uploadedAt: _parseDate(
+          json['uploaded_at'] ?? json['created_at'] ?? json['updated_at']),
+      ownerId: (json['owner_id'] ?? json['user_id'] ?? '').toString(),
+      category: json['category'] as String?,
       isPinned: json['is_pinned'] as bool? ?? false,
-      isShared: json['is_shared'] as bool? ?? false,
-      tags: (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+      tags: (json['tags'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'category': category,
-      'type': type.name,
-      'file_size': fileSize,
-      'updated_at': updatedAt.toIso8601String(),
-      'encryption_algorithm': encryptionAlgorithm,
-      'is_pinned': isPinned,
-      'is_shared': isShared,
-      'tags': tags,
-    };
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'filename': filename,
+        'mime_type': mimeType,
+        'file_size': fileSizeBytes,
+        'uploaded_at': uploadedAt.toIso8601String(),
+        'owner_id': ownerId,
+        'category': customCategory,
+        'is_pinned': isPinned,
+        'tags': customTags,
+      };
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  static int _parseInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) {
+      final parsed = int.tryParse(v);
+      if (parsed != null) return parsed;
+      return _parseSizeStringToBytes(v);
+    }
+    return 0;
+  }
+
+  static int _parseSizeStringToBytes(String? str) {
+    if (str == null || str.isEmpty) return 0;
+    final lower = str.toLowerCase().trim();
+    final numPart = double.tryParse(lower.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+    if (lower.contains('mb')) return (numPart * 1024 * 1024).round();
+    if (lower.contains('kb')) return (numPart * 1024).round();
+    if (lower.contains('gb')) return (numPart * 1024 * 1024 * 1024).round();
+    return numPart.round();
+  }
+
+  static DateTime _parseDate(dynamic v) {
+    if (v == null) return DateTime.now();
+    if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+    return DateTime.now();
   }
 }
