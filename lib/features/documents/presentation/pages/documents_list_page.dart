@@ -22,6 +22,7 @@ class _DocumentsListPageState extends State<DocumentsListPage> {
   String? _error;
   final Set<String> _downloadingIds = {};
   final Set<String> _deletingIds = {};
+  final Set<String> _updatingVisibilityIds = {};
 
   @override
   void initState() {
@@ -110,6 +111,49 @@ class _DocumentsListPageState extends State<DocumentsListPage> {
       }
     } finally {
       if (mounted) setState(() => _downloadingIds.remove(doc.id));
+    }
+  }
+
+  Future<void> _toggleDocumentVisibility(DocumentModel doc) async {
+    final newVisibility = !doc.isPublic;
+    setState(() => _updatingVisibilityIds.add(doc.id));
+    try {
+      await _dataSource.updateDocumentVisibility(
+        token: widget.token,
+        documentId: doc.id,
+        isPublic: newVisibility,
+      );
+      if (mounted) {
+        setState(() {
+          final idx = _documents.indexWhere((d) => d.id == doc.id);
+          if (idx != -1) {
+            _documents[idx] = doc.copyWith(isPublic: newVisibility);
+          }
+        });
+        _showSnack(
+          newVisibility
+              ? '"${doc.displayName}" is now Public'
+              : '"${doc.displayName}" is now Private',
+          isError: false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          final idx = _documents.indexWhere((d) => d.id == doc.id);
+          if (idx != -1) {
+            _documents[idx] = doc.copyWith(isPublic: newVisibility);
+          }
+        });
+        _showSnack(
+          newVisibility
+              ? '"${doc.displayName}" is now Public'
+              : '"${doc.displayName}" is now Private',
+          isError: false,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingVisibilityIds.remove(doc.id));
     }
   }
 
@@ -290,8 +334,10 @@ class _DocumentsListPageState extends State<DocumentsListPage> {
             doc: doc,
             isDownloading: _downloadingIds.contains(doc.id),
             isDeleting: _deletingIds.contains(doc.id),
+            isUpdatingVisibility: _updatingVisibilityIds.contains(doc.id),
             onDownload: () => _downloadDocument(doc),
             onDelete: () => _deleteDocument(doc),
+            onToggleVisibility: () => _toggleDocumentVisibility(doc),
           );
         },
       ),
@@ -305,15 +351,19 @@ class _DocumentCard extends StatelessWidget {
   final DocumentModel doc;
   final bool isDownloading;
   final bool isDeleting;
+  final bool isUpdatingVisibility;
   final VoidCallback onDownload;
   final VoidCallback onDelete;
+  final VoidCallback onToggleVisibility;
 
   const _DocumentCard({
     required this.doc,
     required this.isDownloading,
     required this.isDeleting,
+    required this.isUpdatingVisibility,
     required this.onDownload,
     required this.onDelete,
+    required this.onToggleVisibility,
   });
 
   @override
@@ -390,6 +440,12 @@ class _DocumentCard extends StatelessWidget {
                           children: [
                             _tag(doc.extension.isEmpty ? 'FILE' : doc.extension.toUpperCase(),
                                 doc.accentColor),
+                            const SizedBox(width: 8),
+                            _visibilityBadge(
+                              isPublic: doc.isPublic,
+                              isLoading: isUpdatingVisibility,
+                              onTap: onToggleVisibility,
+                            ),
                             const SizedBox(width: 8),
                             Text(doc.fileSizeDisplay,
                                 style: AppTextStyles.caption),
@@ -474,6 +530,61 @@ class _DocumentCard extends StatelessWidget {
       ),
       child: Text(text,
           style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _visibilityBadge({
+    required bool isPublic,
+    required bool isLoading,
+    required VoidCallback onTap,
+  }) {
+    if (isLoading) {
+      return const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(
+          strokeWidth: 1.8,
+          color: AppColors.primary,
+        ),
+      );
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: isPublic
+              ? AppColors.primary.withValues(alpha: 0.14)
+              : AppColors.inputField,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isPublic
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : AppColors.border,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isPublic ? Icons.public_rounded : Icons.lock_outline_rounded,
+              size: 10,
+              color: isPublic ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 3.5),
+            Text(
+              isPublic ? 'Public' : 'Private',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: isPublic ? AppColors.primary : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -19,6 +19,7 @@ class DocumentModel {
   final String ownerId;
   final String? customCategory;
   final bool isPinned;
+  final bool isPublic;
   final List<String> customTags;
 
   DocumentModel({
@@ -33,6 +34,7 @@ class DocumentModel {
     String? ownerId,
     String? category,
     this.isPinned = false,
+    this.isPublic = false,
     List<String>? tags,
     DocumentType? type,
   })  : filename = filename ?? title ?? 'Untitled',
@@ -148,6 +150,7 @@ class DocumentModel {
     String? ownerId,
     String? category,
     bool? isPinned,
+    bool? isPublic,
     List<String>? tags,
   }) {
     return DocumentModel(
@@ -159,6 +162,7 @@ class DocumentModel {
       ownerId: ownerId ?? this.ownerId,
       category: category ?? customCategory,
       isPinned: isPinned ?? this.isPinned,
+      isPublic: isPublic ?? this.isPublic,
       tags: tags ?? customTags,
     );
   }
@@ -180,6 +184,7 @@ class DocumentModel {
       ownerId: (json['owner_id'] ?? json['user_id'] ?? '').toString(),
       category: json['category'] as String?,
       isPinned: json['is_pinned'] as bool? ?? false,
+      isPublic: (json['is_public'] ?? json['isPublic'] ?? (json['visibility'] == 'public')) as bool? ?? false,
       tags: (json['tags'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
@@ -196,6 +201,8 @@ class DocumentModel {
         'owner_id': ownerId,
         'category': customCategory,
         'is_pinned': isPinned,
+        'is_public': isPublic,
+        'visibility': isPublic ? 'public' : 'private',
         'tags': customTags,
       };
 

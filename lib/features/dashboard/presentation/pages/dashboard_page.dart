@@ -9,6 +9,8 @@ import '../../../documents/presentation/pages/document_upload_page.dart';
 import '../../../documents/presentation/pages/documents_list_page.dart';
 import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../auth/presentation/pages/login_page.dart';
+import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../portfolio/presentation/pages/portfolio_feed_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String userEmail;
@@ -308,11 +310,16 @@ class _DashboardPageState extends State<DashboardPage>
           child: CircularProgressIndicator(color: AppColors.primary),
         );
       case 2:
-        return _buildPlaceholderTab(
-            Icons.grid_view_rounded, 'Categories', 'Organize documents by category');
+        return PortfolioFeedPage(
+          token: _token ?? '',
+          userEmail: widget.userEmail,
+        );
       case 3:
-        return _buildPlaceholderTab(
-            Icons.person_outline_rounded, 'Profile', 'Manage your account settings');
+        return ProfilePage(
+          token: _token ?? '',
+          userEmail: widget.userEmail,
+          onNavigateToDocuments: () => setState(() => _selectedIndex = 1),
+        );
       default:
         return _buildHomePage();
     }
@@ -396,7 +403,8 @@ class _DashboardPageState extends State<DashboardPage>
                   _headerIconButton(Icons.notifications_outlined, onTap: () {}),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: _handleLogout,
+                    onTap: () => setState(() => _selectedIndex = 3),
+                    onLongPress: _handleLogout,
                     child: Container(
                       width: 42,
                       height: 42,
@@ -624,14 +632,14 @@ class _DashboardPageState extends State<DashboardPage>
             const SizedBox(width: 12),
             Expanded(
               child: _quickActionTile(
-                icon: Icons.share_rounded,
-                label: 'Share',
+                icon: Icons.auto_awesome_mosaic_rounded,
+                label: 'Portfolio',
                 gradient: const LinearGradient(
                   colors: [Color(0xFF00F5A0), Color(0xFF005C3D)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                onTap: () {},
+                onTap: () => setState(() => _selectedIndex = 2),
               ),
             ),
             const SizedBox(width: 12),
@@ -842,48 +850,6 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  // ─── PLACEHOLDER TABS ───────────────────────────────────────────────────────
-
-  Widget _buildPlaceholderTab(IconData icon, String title, String subtitle) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.surfaceCard,
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 36),
-          ),
-          const SizedBox(height: 20),
-          Text(title, style: AppTextStyles.heading2),
-          const SizedBox(height: 8),
-          Text(subtitle, style: AppTextStyles.body, textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(40),
-            ),
-            child: const Text(
-              'Coming Soon',
-              style: TextStyle(
-                color: Color(0xFF070B14),
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ─── BOTTOM NAV ─────────────────────────────────────────────────────────────
 
@@ -910,7 +876,7 @@ class _DashboardPageState extends State<DashboardPage>
               _navItem(0, Icons.home_rounded, 'Home'),
               _navItem(1, Icons.folder_rounded, 'Docs'),
               const SizedBox(width: 64), // FAB gap
-              _navItem(2, Icons.grid_view_rounded, 'Categories'),
+              _navItem(2, Icons.auto_awesome_mosaic_rounded, 'Feed'),
               _navItem(3, Icons.person_rounded, 'Profile'),
             ],
           ),

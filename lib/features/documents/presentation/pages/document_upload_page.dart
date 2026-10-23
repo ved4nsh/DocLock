@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -22,6 +22,7 @@ class _DocumentUploadPageState extends State<DocumentUploadPage>
   String? _pickedFileName;
   int? _pickedFileSize;
   bool _isUploading = false;
+  bool _isPublic = false;
 
   late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
@@ -68,10 +69,19 @@ class _DocumentUploadPageState extends State<DocumentUploadPage>
 
     setState(() => _isUploading = true);
     try {
-      await _dataSource.uploadDocument(
+      final doc = await _dataSource.uploadDocument(
         token: widget.token,
         file: _pickedFile!,
       );
+      if (_isPublic && doc.id.isNotEmpty) {
+        try {
+          await _dataSource.updateDocumentVisibility(
+            token: widget.token,
+            documentId: doc.id,
+            isPublic: true,
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
       _showSnack('Document uploaded successfully!', isError: false);
       await Future.delayed(const Duration(milliseconds: 600));
@@ -200,7 +210,135 @@ class _DocumentUploadPageState extends State<DocumentUploadPage>
                 ),
               ),
 
-              const SizedBox(height: 36),
+              const SizedBox(height: 24),
+
+              // Visibility Selector
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Document Visibility',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Choose whether to keep this document private in your vault or make it public for portfolios.',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _isPublic = false),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: !_isPublic
+                                    ? AppColors.primary.withValues(alpha: 0.15)
+                                    : AppColors.inputField,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: !_isPublic
+                                      ? AppColors.primary
+                                      : AppColors.border,
+                                  width: !_isPublic ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 16,
+                                    color: !_isPublic
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Private (Vault)',
+                                    style: TextStyle(
+                                      color: !_isPublic
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _isPublic = true),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: _isPublic
+                                    ? AppColors.accent.withValues(alpha: 0.15)
+                                    : AppColors.inputField,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _isPublic
+                                      ? AppColors.accent
+                                      : AppColors.border,
+                                  width: _isPublic ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.public_rounded,
+                                    size: 16,
+                                    color: _isPublic
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Public (Shared)',
+                                    style: TextStyle(
+                                      color: _isPublic
+                                          ? AppColors.accent
+                                          : AppColors.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
 
               // Upload button
               Container(

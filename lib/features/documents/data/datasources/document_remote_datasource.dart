@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -20,6 +20,11 @@ abstract class DocumentRemoteDataSource {
   Future<void> deleteDocument({
     required String token,
     required String documentId,
+  });
+  Future<DocumentModel> updateDocumentVisibility({
+    required String token,
+    required String documentId,
+    required bool isPublic,
   });
 }
 
@@ -147,6 +152,49 @@ class DocumentRemoteDataSourceImpl implements DocumentRemoteDataSource {
       if (e is Exception) rethrow;
       throw Exception('Unexpected error: $e');
     }
+  }
+
+  // ─── PATCH /api/v1/documents/{id}/visibility ─────────────────────────────
+
+  @override
+  Future<DocumentModel> updateDocumentVisibility({
+    required String token,
+    required String documentId,
+    required bool isPublic,
+  }) async {
+    final url = Uri.parse(
+        '$_baseUrl${ApiConstants.documentVisibilityEndpoint(documentId)}');
+    try {
+      final response = await _client.patch(
+        url,
+        headers: {
+          ..._authHeaders(token),
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'is_public': isPublic,
+          'visibility': isPublic ? 'public' : 'private',
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        if (response.body.isEmpty) {
+          return DocumentModel(id: documentId, isPublic: isPublic);
+        }
+        final body = jsonDecode(response.body);
+        final data = body is Map<String, dynamic> && body.containsKey('document')
+            ? body['document']
+            : (body is Map<String, dynamic> && body.containsKey('data') ? body['data'] : body);
+        return DocumentModel.fromJson(data as Map<String, dynamic>);
+      }
+      _throwFromResponse(response);
+    } on SocketException {
+      throw Exception('Network error: Could not reach server');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Unexpected error: $e');
+    }
+    throw Exception('Failed to update visibility');
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
