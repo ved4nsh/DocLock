@@ -3,8 +3,7 @@ class ApiConstants {
   ApiConstants._();
 
   /// Base URL for backend API services.
-  /// - http://10.0.2.2:8000 is used by Android Emulator to reach localhost:8000 on the host machine.
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = 'https://mydocklock.duckdns.org';
 
   // Auth endpoints
   static const String loginEndpoint = '/api/v1/auth/login';
