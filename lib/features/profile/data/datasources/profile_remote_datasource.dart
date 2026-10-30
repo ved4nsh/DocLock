@@ -121,7 +121,7 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
       final request = http.MultipartRequest('PUT', url)
         ..headers.addAll(_authHeaders(token))
         ..files.add(await http.MultipartFile.fromPath(
-          'photo',
+          'file',
           photoFile.path,
           contentType: MediaType.parse(_mimeFromPath(photoFile.path)),
         ));
@@ -173,7 +173,15 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   void _throwFromResponse(http.Response response) {
     try {
       final body = jsonDecode(response.body);
-      final msg = body['detail'] ?? body['message'] ?? response.reasonPhrase;
+      dynamic msg = body['detail'] ?? body['message'] ?? response.reasonPhrase;
+      if (msg is List && msg.isNotEmpty) {
+        final first = msg.first;
+        if (first is Map && first.containsKey('msg')) {
+          msg = first['msg'];
+        } else {
+          msg = first.toString();
+        }
+      }
       throw Exception(msg.toString());
     } catch (e) {
       if (e is Exception && !e.toString().contains('FormatException')) rethrow;
