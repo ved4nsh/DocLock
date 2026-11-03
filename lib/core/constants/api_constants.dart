@@ -34,4 +34,8 @@ class ApiConstants {
       '/api/v1/portfolios/$id/comments';
   static String portfolioCommentDeleteEndpoint(String id, String commentId) =>
       '/api/v1/portfolios/$id/comments/$commentId';
+
+  // AI Agent endpoints
+  static const String agentChatEndpoint = '/api/v1/agent/chat';
+  static const String agentSuggestionsEndpoint = '/api/v1/agent/suggestions';
 }

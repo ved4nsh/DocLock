@@ -11,6 +11,7 @@ import '../../../auth/data/datasources/auth_local_datasource.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../portfolio/presentation/pages/portfolio_feed_page.dart';
+import '../../../assistant/presentation/pages/ai_assistant_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String userEmail;
@@ -237,6 +238,23 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
+  void _openAiAssistant() {
+    if (_token == null || _token!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait until your session is authenticated.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AiAssistantPage(token: _token!),
+      ),
+    );
+  }
+
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -340,6 +358,8 @@ class _DashboardPageState extends State<DashboardPage>
               children: [
                 const SizedBox(height: 24),
                 _buildSecurityBanner(),
+                const SizedBox(height: 20),
+                _buildAiBanner(),
                 const SizedBox(height: 28),
                 _buildStatsRow(),
                 const SizedBox(height: 28),
@@ -397,6 +417,12 @@ class _DashboardPageState extends State<DashboardPage>
               ),
               Row(
                 children: [
+                  _headerIconButton(
+                    Icons.auto_awesome_rounded,
+                    onTap: _openAiAssistant,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 8),
                   _headerIconButton(Icons.search_rounded,
                       onTap: () => setState(() => _selectedIndex = 1)),
                   const SizedBox(width: 8),
@@ -444,7 +470,8 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _headerIconButton(IconData icon, {required VoidCallback onTap}) {
+  Widget _headerIconButton(IconData icon,
+      {required VoidCallback onTap, Color? color}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -453,9 +480,102 @@ class _DashboardPageState extends State<DashboardPage>
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border, width: 1),
+          border: Border.all(
+            color: color != null
+                ? color.withValues(alpha: 0.4)
+                : AppColors.border,
+            width: 1,
+          ),
         ),
-        child: Icon(icon, color: AppColors.textSecondary, size: 20),
+        child: Icon(icon, color: color ?? AppColors.textSecondary, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildAiBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.12),
+            AppColors.secondary.withValues(alpha: 0.18),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.auto_awesome_rounded,
+                color: Color(0xFF070B14), size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'DocLock AI Assistant',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Find files, summarize documents, or query your vault.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary.withValues(alpha: 0.9),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: _openAiAssistant,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.surface,
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 0,
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Ask AI',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                SizedBox(width: 4),
+                Icon(Icons.arrow_forward_rounded, size: 14),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -5,6 +5,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../data/datasources/document_remote_datasource.dart';
 import '../../data/models/document_model.dart';
 import 'document_upload_page.dart';
+import '../../../assistant/presentation/pages/ai_assistant_page.dart';
 
 class DocumentsListPage extends StatefulWidget {
   final String token;
@@ -191,7 +192,18 @@ class _DocumentsListPageState extends State<DocumentsListPage> {
                 fontSize: 18)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
+            icon: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AiAssistantPage(token: widget.token),
+                ),
+              );
+            },
+            tooltip: 'Ask DocLock AI',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
             onPressed: _fetchDocuments,
             tooltip: 'Refresh',
           ),
