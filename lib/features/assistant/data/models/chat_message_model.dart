@@ -2,6 +2,7 @@ import '../../../documents/data/models/document_model.dart';
 
 class ChatMessageModel {
   final String id;
+  final int? conversationId;
   final String text;
   final bool isUser;
   final DateTime timestamp;
@@ -13,6 +14,7 @@ class ChatMessageModel {
 
   ChatMessageModel({
     required this.id,
+    this.conversationId,
     required this.text,
     required this.isUser,
     required this.timestamp,
@@ -25,6 +27,7 @@ class ChatMessageModel {
 
   ChatMessageModel copyWith({
     String? id,
+    int? conversationId,
     String? text,
     bool? isUser,
     DateTime? timestamp,
@@ -36,6 +39,7 @@ class ChatMessageModel {
   }) {
     return ChatMessageModel(
       id: id ?? this.id,
+      conversationId: conversationId ?? this.conversationId,
       text: text ?? this.text,
       isUser: isUser ?? this.isUser,
       timestamp: timestamp ?? this.timestamp,
@@ -70,6 +74,7 @@ class ChatMessageModel {
 
     return ChatMessageModel(
       id: json['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      conversationId: int.tryParse(json['conversation_id']?.toString() ?? ''),
       text: json['reply']?.toString() ?? json['message']?.toString() ?? json['text']?.toString() ?? '',
       isUser: false,
       timestamp: json['timestamp'] != null
@@ -89,4 +94,3 @@ class ChatMessageModel {
         'action': action,
       };
 }
-

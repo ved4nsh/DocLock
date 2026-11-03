@@ -12,13 +12,13 @@ class AgentRepositoryImpl implements AgentRepository {
   Future<ChatMessageModel> sendMessage({
     required String token,
     required String message,
-    List<ChatMessageModel>? conversationHistory,
+    int? conversationId,
     String? activeDocumentId,
   }) {
     return _remoteDataSource.sendChatMessage(
       token: token,
       prompt: message,
-      history: conversationHistory,
+      conversationId: conversationId,
       activeDocumentId: activeDocumentId,
     );
   }
@@ -28,4 +28,3 @@ class AgentRepositoryImpl implements AgentRepository {
     return _remoteDataSource.getSuggestedPrompts(token: token);
   }
 }
-

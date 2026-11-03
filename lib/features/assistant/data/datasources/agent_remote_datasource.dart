@@ -8,7 +8,7 @@ abstract class AgentRemoteDataSource {
   Future<ChatMessageModel> sendChatMessage({
     required String token,
     required String prompt,
-    List<ChatMessageModel>? history,
+    int? conversationId,
     String? activeDocumentId,
   });
 
@@ -35,23 +35,14 @@ class AgentRemoteDataSourceImpl implements AgentRemoteDataSource {
   Future<ChatMessageModel> sendChatMessage({
     required String token,
     required String prompt,
-    List<ChatMessageModel>? history,
+    int? conversationId,
     String? activeDocumentId,
   }) async {
     final url = Uri.parse('$_baseUrl${ApiConstants.agentChatEndpoint}');
-
-    final historyPayload = (history ?? [])
-        .where((m) => !m.isLoading && !m.hasError)
-        .map((m) => {
-              'role': m.isUser ? 'user' : 'model',
-              'text': m.text,
-            })
-        .toList();
-
     final body = {
-      'prompt': prompt,
-      'history': historyPayload,
-      if (activeDocumentId != null) 'active_document_id': activeDocumentId,
+      'message': prompt,
+      'conversation_id': conversationId,
+      'active_document_id': activeDocumentId,
     };
 
     try {
@@ -103,6 +94,11 @@ class AgentRemoteDataSourceImpl implements AgentRemoteDataSource {
   }
 
   void _throwFromResponse(http.Response response) {
+    if (response.statusCode == 404) {
+      throw Exception(
+        'AI agent endpoint not found. Deploy the backend agent API and verify the configured base URL.',
+      );
+    }
     try {
       final body = jsonDecode(response.body);
       dynamic msg = body['detail'] ?? body['message'] ?? response.reasonPhrase;
@@ -121,4 +117,3 @@ class AgentRemoteDataSourceImpl implements AgentRemoteDataSource {
     }
   }
 }
-

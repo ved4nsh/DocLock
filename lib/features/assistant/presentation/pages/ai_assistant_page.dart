@@ -27,6 +27,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
 
   final List<ChatMessageModel> _messages = [];
   List<String> _suggestedPrompts = [];
+  int? _conversationId;
   bool _isLoading = false;
 
   @override
@@ -99,12 +100,13 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
       final agentReply = await _agentRepository.sendMessage(
         token: widget.token,
         message: text,
-        conversationHistory: _messages,
+        conversationId: _conversationId,
         activeDocumentId: widget.activeDocumentId,
       );
 
       if (mounted) {
         setState(() {
+          _conversationId = agentReply.conversationId ?? _conversationId;
           _messages.add(agentReply);
         });
       }
@@ -539,4 +541,3 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     );
   }
 }
-

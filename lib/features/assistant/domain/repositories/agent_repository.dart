@@ -4,10 +4,9 @@ abstract class AgentRepository {
   Future<ChatMessageModel> sendMessage({
     required String token,
     required String message,
-    List<ChatMessageModel>? conversationHistory,
+    int? conversationId,
     String? activeDocumentId,
   });
 
   Future<List<String>> getSuggestedPrompts({required String token});
 }
-
